@@ -4,7 +4,7 @@
 
 ## Текущий этап
 
-Выполняется ПР13: паспорт проекта, бэклог ПР13-ПР20 и стартовый набор eval-кейсов.
+ПР14: архитектура и walking skeleton на FastAPI с mock-провайдером и in-memory хранилищем.
 
 ## Стартовые артефакты
 
@@ -12,7 +12,26 @@
 - [Бэклог](docs/backlog.md)
 - [Стартовый eval-набор](eval/cases.json)
 - [Правила использования AI](AI_USAGE.md)
+- [Архитектура](docs/architecture.md)
+- [API-контракт](docs/api.md)
 
-## Запуск
+## Локальный запуск
 
-На ПР13 приложение ещё не имеет рабочего runtime-кода. Планируемая команда запуска появится в ПР14-ПР15 после создания FastAPI-каркаса.
+Требуется Python 3.11 или новее.
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements-dev.txt
+uvicorn tripplanner.main:app --reload
+```
+
+Откройте `http://127.0.0.1:8000/`. Swagger UI доступен по адресу `http://127.0.0.1:8000/docs`.
+
+## Проверки
+
+```powershell
+python -m pytest
+```
+
+По умолчанию используется только детерминированный mock-провайдер; платные API не вызываются. Конфигурация задаётся переменными окружения, пример — в [.env.example](.env.example).

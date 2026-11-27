@@ -1,0 +1,14 @@
+flowchart LR
+    User[Путешественник] -->|HTTPS / HTML| App[TripPlanner AI]
+    App -->|структурированный черновик| Provider[Провайдер маршрутов]
+    App -->|план по owner_id| Storage[Хранилище планов]
+    Provider -.->|ПР14: mock; позже: AI-шлюз| App
+    Storage -.->|ПР14: in-memory; позже: SQLite| App
+
+    subgraph Containers[Контейнеры приложения]
+        Browser[Браузер: HTML UI] -->|HTTP JSON + X-Request-ID| API[FastAPI контроллер]
+        API -->|PlanRequest / PlanResponse| Service[Прикладной PlanService]
+        Service -->|PlanProvider Protocol| Mock[MockProvider]
+        Service -->|Repository contract| Memory[InMemoryPlanRepository]
+        Settings[Окружение / Settings] --> API
+    end
