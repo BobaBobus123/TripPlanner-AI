@@ -4,7 +4,7 @@
 
 ## Текущий этап
 
-ПР14: архитектура и walking skeleton на FastAPI с mock-провайдером и in-memory хранилищем.
+ПР15: основной AI-сценарий, OpenAI-compatible provider, versioned prompt, валидация структурированного плана и офлайн evaluation.
 
 ## Стартовые артефакты
 
@@ -14,6 +14,7 @@
 - [Правила использования AI](AI_USAGE.md)
 - [Архитектура](docs/architecture.md)
 - [API-контракт](docs/api.md)
+- [Замеры провайдера](docs/measurements.md)
 
 ## Локальный запуск
 
@@ -34,4 +35,12 @@ uvicorn tripplanner.main:app --reload
 python -m pytest
 ```
 
-По умолчанию используется только детерминированный mock-провайдер; платные API не вызываются. Конфигурация задаётся переменными окружения, пример — в [.env.example](.env.example).
+По умолчанию используется только детерминированный mock-провайдер; платные API не вызываются. Для подключения OpenAI-compatible endpoint задайте `PROVIDER=openai_compat`, `OPENAI_COMPAT_API_KEY`, URL/model и актуальные цены токенов. Конфигурация задаётся переменными окружения, пример — в [.env.example](.env.example).
+
+Офлайн eval (без HTTP и реального API), результаты сохраняются в игнорируемый `eval/runs/`:
+
+```powershell
+python -m scripts.run_eval --k 3
+```
+
+Для управляемого replay/record используйте `RECORDED_MODE=replay|record|passthrough`. `record` сохраняет hash ключа и сгенерированный ответ локально; используйте только синтетические данные и не публикуйте каталог `recordings/`.

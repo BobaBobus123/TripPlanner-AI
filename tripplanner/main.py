@@ -6,15 +6,19 @@ from fastapi import FastAPI, Header, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from tripplanner.ai.budget import DailyBudget
+from tripplanner.ai.orchestrator import PlanOrchestrator
 from tripplanner.config import Settings
 from tripplanner.errors import (
     ErrorCode,
-    ProviderFailure,
     TripPlannerError,
     error_response,
 )
 from tripplanner.models import PlanRequest, PlanResponse
+from tripplanner.providers.base import PlanProvider
 from tripplanner.providers.mock import MockProvider
+from tripplanner.providers.openai_compat import OpenAICompatProvider
+from tripplanner.providers.recorded import RecordedProvider
 from tripplanner.services.plans import PlanService
 from tripplanner.storage.memory import InMemoryPlanRepository
 from tripplanner.ui import index_page
@@ -37,13 +41,33 @@ SAFE_ERROR_FIELDS = {
 def create_app(settings: Settings | None = None) -> FastAPI:
     app_settings = settings or Settings()
     app = FastAPI(title="TripPlanner AI", version="0.1.0")
-    provider = MockProvider(app_settings)
+    provider: PlanProvider
+    if app_settings.provider == "mock":
+        provider = MockProvider(app_settings)
+    else:
+        provider = OpenAICompatProvider(app_settings)
+    if app_settings.recorded_mode in {"replay", "record", "passthrough"}:
+        provider = RecordedProvider(
+            provider,
+            app_settings.recorded_path,
+            app_settings.recorded_mode,
+            fingerprint=(
+                f"{app_settings.provider}:{app_settings.openai_compat_model}:"
+                f"{app_settings.max_output_tokens}:temperature=0.2"
+            ),
+        )
     repository = InMemoryPlanRepository()
-    service = PlanService(provider, repository)
+    orchestrator = PlanOrchestrator(
+        provider,
+        app_settings,
+        DailyBudget(app_settings),
+    )
+    service = PlanService(orchestrator, repository)
     app.state.settings = app_settings
     app.state.provider = provider
     app.state.repository = repository
     app.state.plan_service = service
+    app.state.plan_orchestrator = orchestrator
 
     @app.middleware("http")
     async def request_id_middleware(request: Request, call_next):

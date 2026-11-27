@@ -21,5 +21,6 @@ htmlcov/
 .idea/
 
 eval/runs/
+recordings/
 *.sqlite
 *.sqlite3

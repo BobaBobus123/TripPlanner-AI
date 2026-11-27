@@ -1,19 +1,21 @@
 import asyncio
 import json
 from collections.abc import AsyncIterator
-from datetime import date, datetime, timedelta, timezone
-from uuid import uuid4
+from datetime import date, timedelta
+from time import perf_counter
 
 from tripplanner.config import Settings
 from tripplanner.errors import ErrorCode, ProviderFailure
-from tripplanner.models import ItineraryDay, PlanRequest, PlanResponse
+from tripplanner.models import ItineraryDay, PlanDraft, PlanRequest
+from tripplanner.providers.base import ProviderCompletion
 
 
 class MockProvider:
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
 
-    async def generate(self, request: PlanRequest) -> PlanResponse:
+    async def generate(self, request: PlanRequest, prompt: str = "") -> ProviderCompletion:
+        started = perf_counter()
         mode = self._settings.mock_failure_mode
         if mode == "delay":
             await asyncio.sleep(self._settings.mock_delay_seconds)
@@ -29,7 +31,8 @@ class MockProvider:
             except json.JSONDecodeError as exc:
                 raise ProviderFailure(ErrorCode.INVALID_OUTPUT) from exc
 
-        days = [
+        draft = PlanDraft(
+            days=[
             ItineraryDay(
                 date=day,
                 activities=[
@@ -37,28 +40,31 @@ class MockProvider:
                 ],
             )
             for day in self._dates(request.start_date, request.end_date)
-        ]
-        return PlanResponse(
-            id=str(uuid4()),
-            destination=request.destination,
-            start_date=request.start_date,
-            end_date=request.end_date,
-            currency=request.currency,
-            budget=request.budget,
-            traveler_count=request.traveler_count,
-            days=days,
-            missing_data=["live_weather", "current_prices", "opening_hours"],
+            ],
+            missing_data=[
+                "live_weather",
+                "current_prices",
+                "opening_hours",
+                "budget_estimates",
+            ],
+        )
+        content = draft.model_dump_json()
+        return ProviderCompletion(
+            content=content,
+            input_tokens=max(1, len(prompt) // 4),
+            output_tokens=max(1, len(content) // 4),
+            model="deterministic-mock",
             source="mock",
-            created_at=datetime.now(timezone.utc),
+            latency_ms=(perf_counter() - started) * 1000,
         )
 
-    async def stream(self, request: PlanRequest) -> AsyncIterator[str]:
+    async def stream(self, request: PlanRequest, prompt: str = "") -> AsyncIterator[str]:
         if self._settings.mock_failure_mode == "stream_interrupted":
             yield '{"partial":'
             raise ProviderFailure(ErrorCode.PROVIDER_UNAVAILABLE)
 
-        result = await self.generate(request)
-        payload = result.model_dump_json()
+        result = await self.generate(request, prompt)
+        payload = result.content
         midpoint = max(1, len(payload) // 2)
         yield payload[:midpoint]
         yield payload[midpoint:]

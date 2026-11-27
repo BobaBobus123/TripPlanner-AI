@@ -23,6 +23,8 @@ class PlanRequest(StrictModel):
     budget: Decimal = Field(gt=0, max_digits=12, decimal_places=2)
     traveler_count: int = Field(ge=1, le=20)
     interests: list[str] = Field(default_factory=list, max_length=10)
+    constraints: list[str] = Field(default_factory=list, max_length=10)
+    weather_required: bool = False
 
     @field_validator("destination")
     @classmethod
@@ -37,9 +39,9 @@ class PlanRequest(StrictModel):
     def normalize_currency(cls, value: str) -> str:
         return value.upper()
 
-    @field_validator("interests")
+    @field_validator("interests", "constraints")
     @classmethod
-    def normalize_interests(cls, values: list[str]) -> list[str]:
+    def normalize_preferences(cls, values: list[str]) -> list[str]:
         normalized = [value.strip() for value in values]
         if any(not value or len(value) > 80 for value in normalized):
             raise ValueError("Interests must contain 1 to 80 characters")
@@ -59,6 +61,12 @@ class PlanRequest(StrictModel):
 class ItineraryDay(StrictModel):
     date: date
     activities: list[str] = Field(min_length=1)
+    estimated_cost: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
+
+
+class PlanDraft(StrictModel):
+    days: list[ItineraryDay]
+    missing_data: list[str] = Field(default_factory=list)
 
 
 class PlanResponse(StrictModel):
@@ -71,5 +79,5 @@ class PlanResponse(StrictModel):
     traveler_count: int
     days: list[ItineraryDay]
     missing_data: list[str]
-    source: Literal["mock"]
+    source: Literal["main", "fallback", "cache", "mock", "recorded"]
     created_at: datetime

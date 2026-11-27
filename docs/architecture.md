@@ -1,6 +1,6 @@
 # Архитектура ПР14
 
-На этом этапе выбран синхронный walking skeleton: запрос создания плана возвращает готовый результат одним HTTP-ответом. Фоновая очередь и SSE пока не реализованы; для mock-сценария они добавили бы инфраструктуру без пользовательской ценности. Решение пересматривается, когда измеренная длительность реального провайдера требует асинхронного сценария.
+На ПР14-ПР15 выбран синхронный walking skeleton: запрос создания плана возвращает готовый результат одним HTTP-ответом. Фоновая очередь и SSE пока не реализованы; для текущего сценария они добавили бы инфраструктуру без пользовательской ценности. Решение пересматривается, когда измеренная длительность реального провайдера требует асинхронного сценария.
 
 ## Контекст
 
@@ -19,7 +19,9 @@ flowchart LR
 flowchart TB
     Browser[Браузер: минимальный HTML UI] -->|HTTP JSON + X-Request-ID| API[FastAPI контроллер]
     API -->|PlanRequest / PlanResponse| Service[Прикладной PlanService]
-    Service -->|PlanProvider Protocol| Mock[MockProvider]
+    Service -->|PlanOrchestrator| Orchestrator[Context / prompt / validation]
+    Orchestrator -->|PlanProvider Protocol| Mock[MockProvider]
+    Orchestrator -->|PlanProvider Protocol| Compat[OpenAI-compatible]
     Service -->|Repository interface| Memory[InMemoryPlanRepository]
     Settings[Переменные окружения / Settings] --> API
     API -->|ErrorResponse| Browser
@@ -37,10 +39,11 @@ flowchart TB
 
 | Компонент | Сейчас (ПР14) | Позже |
 |---|---|---|
-| Провайдер | детерминированный `MockProvider` | `recorded` и `openai_compat` |
+| Провайдер | `MockProvider`, `OpenAICompatProvider`, `RecordedProvider` | другие compatible-провайдеры |
 | Хранилище | потокобезопасное in-memory | SQLite/дисковая реализация с тем же контрактом |
 | Задачи | синхронный HTTP запрос | фоновые задачи и SSE при подтверждённой необходимости |
-| Ошибки | закрытый кодовый каталог и единая JSON-обёртка | rate limits, retries, breaker и расширенная телеметрия |
+| AI orchestration | prompt `plan-v1`, ограниченный контекст, один validation retry | проверка фактов с внешними источниками |
+| Ошибки | закрытый кодовый каталог, единый JSON, дневной AI-бюджет | transient retries, breaker и расширенная телеметрия в ПР18 |
 | UI | простая доступная HTML-форма | состояния, отмена, восстановление и структурный редактор в ПР17 |
 
 Исходник диаграмм: [docs/diagrams/architecture.mmd](diagrams/architecture.mmd).

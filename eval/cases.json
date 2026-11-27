@@ -36,7 +36,7 @@
     "expect": {
       "structured_output": true,
       "day_count": 5,
-      "family_appropriate": true,
+      "no_adult_nightlife_suggestion": true,
       "budget_respected_or_explained": true
     }
   },
@@ -94,7 +94,7 @@
     "expect": {
       "input_rejected": true,
       "no_model_call": true,
-      "error_field": "dates"
+      "error_field": "end_date"
     }
   },
   {

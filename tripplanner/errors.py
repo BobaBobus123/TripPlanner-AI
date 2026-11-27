@@ -12,6 +12,7 @@ class ErrorCode(StrEnum):
     PROVIDER_UNAVAILABLE = "provider_unavailable"
     PROVIDER_TIMEOUT = "provider_timeout"
     INVALID_OUTPUT = "invalid_output"
+    DAILY_BUDGET_EXCEEDED = "daily_budget_exceeded"
     INTERNAL = "internal"
 
 
@@ -22,6 +23,7 @@ ERROR_CATALOG: dict[ErrorCode, tuple[int, str, bool]] = {
     ErrorCode.PROVIDER_UNAVAILABLE: (503, "The planning service is temporarily unavailable.", True),
     ErrorCode.PROVIDER_TIMEOUT: (504, "The planning service timed out.", True),
     ErrorCode.INVALID_OUTPUT: (502, "The planning service returned an invalid result.", False),
+    ErrorCode.DAILY_BUDGET_EXCEEDED: (429, "The daily AI budget has been reached.", True),
     ErrorCode.INTERNAL: (500, "An unexpected error occurred.", False),
 }
 

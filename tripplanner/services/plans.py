@@ -1,19 +1,16 @@
-from tripplanner.errors import ErrorCode, ProviderFailure, TripPlannerError
+from tripplanner.errors import ErrorCode, TripPlannerError
 from tripplanner.models import PlanRequest, PlanResponse
-from tripplanner.providers.base import PlanProvider
+from tripplanner.ai.orchestrator import PlanOrchestrator
 from tripplanner.storage.base import PlanRepository
 
 
 class PlanService:
-    def __init__(self, provider: PlanProvider, repository: PlanRepository) -> None:
-        self._provider = provider
+    def __init__(self, orchestrator: PlanOrchestrator, repository: PlanRepository) -> None:
+        self._orchestrator = orchestrator
         self._repository = repository
 
     async def create(self, owner_id: str, request: PlanRequest) -> PlanResponse:
-        try:
-            plan = await self._provider.generate(request)
-        except ProviderFailure:
-            raise
+        plan = await self._orchestrator.create(request)
         self._repository.save(owner_id, plan)
         return plan
 

@@ -38,7 +38,12 @@ def test_create_plan_is_structured_and_propagates_request_id() -> None:
     assert body["currency"] == "UAH"
     assert len(body["days"]) == 3
     assert body["source"] == "mock"
-    assert body["missing_data"] == ["live_weather", "current_prices", "opening_hours"]
+    assert body["missing_data"] == [
+        "live_weather",
+        "current_prices",
+        "opening_hours",
+        "budget_estimates",
+    ]
     assert response.headers["X-Request-ID"] == "demo-request-01"
 
 
