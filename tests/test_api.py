@@ -37,6 +37,7 @@ def test_create_plan_is_structured_and_propagates_request_id() -> None:
     assert body["destination"] == "Lviv"
     assert body["currency"] == "UAH"
     assert len(body["days"]) == 3
+    assert body["days"][0]["activities"][0].startswith("Прогуляйтеся містом Lviv")
     assert body["source"] == "mock"
     assert body["missing_data"] == [
         "live_weather",
@@ -78,6 +79,7 @@ def test_invalid_dates_are_rejected_before_provider_call() -> None:
 
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "invalid_request"
+    assert response.json()["error"]["message"] == "Не вдалося перевірити дані запиту."
     assert response.json()["error"]["fields"] == ["end_date"]
 
 
@@ -101,3 +103,16 @@ def test_minimal_ui_is_served() -> None:
 
     assert response.status_code == 200
     assert "TripPlanner AI" in response.text
+    assert "lang=\"uk\"" in response.text
+    assert "План подорожі" in response.text
+    assert "Подорож" in response.text
+    assert "Створити план" in response.text
+
+
+def test_openapi_metadata_is_ukrainian() -> None:
+    response = TestClient(create_app()).get("/openapi.json")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["info"]["title"] == "TripPlanner AI — планування подорожей"
+    assert body["paths"]["/api/v1/plans"]["post"]["summary"] == "Створити план подорожі"

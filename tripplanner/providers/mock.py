@@ -36,7 +36,7 @@ class MockProvider:
             ItineraryDay(
                 date=day,
                 activities=[
-                    f"Explore {request.destination} at a relaxed pace; confirm current details before travel."
+                    f"Прогуляйтеся містом {request.destination} у спокійному темпі; перед подорожжю перевірте актуальну інформацію."
                 ],
             )
             for day in self._dates(request.start_date, request.end_date)

@@ -40,7 +40,11 @@ SAFE_ERROR_FIELDS = {
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     app_settings = settings or Settings()
-    app = FastAPI(title="TripPlanner AI", version="0.1.0")
+    app = FastAPI(
+        title="TripPlanner AI — планування подорожей",
+        description="API для створення та отримання планів подорожей.",
+        version="0.1.0",
+    )
     provider: PlanProvider
     if app_settings.provider == "mock":
         provider = MockProvider(app_settings)
@@ -115,7 +119,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def home():
         return index_page()
 
-    @app.get("/health")
+    @app.get(
+        "/health",
+        summary="Перевірити стан сервісу",
+        description="Повертає стан сервісу без виклику провайдера планування.",
+    )
     async def health():
         return {
             "status": "ok",
@@ -133,14 +141,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def readiness():
         return {"status": "ready", "storage": app_settings.storage_backend}
 
-    @app.post("/api/v1/plans", response_model=PlanResponse, status_code=201)
+    @app.post(
+        "/api/v1/plans",
+        response_model=PlanResponse,
+        status_code=201,
+        summary="Створити план подорожі",
+    )
     async def create_plan(
         payload: PlanRequest,
         owner_id: str = Header(alias="X-Owner-ID", min_length=1, max_length=128),
     ) -> PlanResponse:
         return await service.create(owner_id, payload)
 
-    @app.get("/api/v1/plans/{plan_id}", response_model=PlanResponse)
+    @app.get(
+        "/api/v1/plans/{plan_id}",
+        response_model=PlanResponse,
+        summary="Отримати план подорожі",
+    )
     async def get_plan(
         plan_id: str,
         owner_id: str = Header(alias="X-Owner-ID", min_length=1, max_length=128),

@@ -17,14 +17,22 @@ class ErrorCode(StrEnum):
 
 
 ERROR_CATALOG: dict[ErrorCode, tuple[int, str, bool]] = {
-    ErrorCode.INVALID_REQUEST: (422, "Request validation failed.", False),
-    ErrorCode.NOT_FOUND: (404, "The requested resource was not found.", False),
-    ErrorCode.RATE_LIMITED: (429, "The service is temporarily rate limited.", True),
-    ErrorCode.PROVIDER_UNAVAILABLE: (503, "The planning service is temporarily unavailable.", True),
-    ErrorCode.PROVIDER_TIMEOUT: (504, "The planning service timed out.", True),
-    ErrorCode.INVALID_OUTPUT: (502, "The planning service returned an invalid result.", False),
-    ErrorCode.DAILY_BUDGET_EXCEEDED: (429, "The daily AI budget has been reached.", True),
-    ErrorCode.INTERNAL: (500, "An unexpected error occurred.", False),
+    ErrorCode.INVALID_REQUEST: (422, "Не вдалося перевірити дані запиту.", False),
+    ErrorCode.NOT_FOUND: (404, "Запитаний ресурс не знайдено.", False),
+    ErrorCode.RATE_LIMITED: (429, "Тимчасово перевищено ліміт запитів.", True),
+    ErrorCode.PROVIDER_UNAVAILABLE: (
+        503,
+        "Сервіс планування тимчасово недоступний.",
+        True,
+    ),
+    ErrorCode.PROVIDER_TIMEOUT: (504, "Час очікування відповіді сервісу вичерпано.", True),
+    ErrorCode.INVALID_OUTPUT: (
+        502,
+        "Сервіс планування повернув некоректний результат.",
+        False,
+    ),
+    ErrorCode.DAILY_BUDGET_EXCEEDED: (429, "Денний бюджет на AI вичерпано.", True),
+    ErrorCode.INTERNAL: (500, "Сталася неочікувана помилка.", False),
 }
 
 
