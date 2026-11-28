@@ -1,14 +1,15 @@
 flowchart LR
-    User[Путешественник] -->|HTTPS / HTML| App[TripPlanner AI]
-    App -->|структурированный черновик| Provider[Провайдер маршрутов]
-    App -->|план по owner_id| Storage[Хранилище планов]
-    Provider -.->|ПР14: mock; позже: AI-шлюз| App
-    Storage -.->|ПР14: in-memory; позже: SQLite| App
+    User[Мандрівник] -->|HTTPS / браузер| Web[FastAPI + HTML]
+    Web -->|Cookie-сесія + CSRF| Auth[Автентифікація]
+    Web -->|202 / статус / SSE| Jobs[API задач]
+    Jobs -->|атомарна черга / історія| DB[(Railway PostgreSQL)]
+    Worker[Фоновий worker] -->|claim / lease / події| DB
+    Worker -->|структурований запит| Provider[Провайдер маршрутів]
+    Provider -->|чернетка| Worker
+    Worker -->|валідація / план / завершення| DB
+    Web -->|SSE та відновлення стану| User
 
-    subgraph Containers[Контейнеры приложения]
-        Browser[Браузер: HTML UI] -->|HTTP JSON + X-Request-ID| API[FastAPI контроллер]
-        API -->|PlanRequest / PlanResponse| Service[Прикладной PlanService]
-        Service -->|PlanProvider Protocol| Mock[MockProvider]
-        Service -->|Repository contract| Memory[InMemoryPlanRepository]
-        Settings[Окружение / Settings] --> API
+    subgraph Local[Локальна розробка]
+        API[FastAPI] -->|той самий контракт| Memory[MemoryTripPlannerStore]
+        LocalWorker[Worker у процесі API] --> Memory
     end

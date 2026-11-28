@@ -24,7 +24,11 @@ class ContextBuilder:
     def __init__(self, token_budget: int) -> None:
         self._token_budget = token_budget
 
-    def build(self, request: PlanRequest) -> BuiltContext:
+    def build(
+        self,
+        request: PlanRequest,
+        live_info: dict[str, Any] | None = None,
+    ) -> BuiltContext:
         core = {
             "destination": request.destination,
             "dates": {
@@ -41,6 +45,8 @@ class ContextBuilder:
             "trip": {**core, "weather_required": request.weather_required},
             "preferences": {"interests": [], "constraints": []},
         }
+        if live_info:
+            data["live_information"] = live_info
         core_text = self._serialize(data)
         if self._estimate_tokens(core_text) > self._token_budget:
             raise TripPlannerError(ErrorCode.INVALID_REQUEST)

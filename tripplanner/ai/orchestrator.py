@@ -1,6 +1,7 @@
 import json
 import logging
 import math
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from time import perf_counter
 from uuid import uuid4
@@ -15,6 +16,7 @@ from tripplanner.config import Settings
 from tripplanner.errors import ErrorCode, ProviderFailure, TripPlannerError
 from tripplanner.models import PlanDraft, PlanRequest, PlanResponse
 from tripplanner.providers.base import PlanProvider
+from tripplanner.services.live_travel import LiveTravelService
 
 logger = logging.getLogger("tripplanner.ai")
 
@@ -27,16 +29,24 @@ class PlanOrchestrator:
         budget: DailyBudget,
         context_builder: ContextBuilder | None = None,
         prompt_renderer: PromptRenderer | None = None,
+        live_travel_service: LiveTravelService | None = None,
     ) -> None:
         self._provider = provider
         self._settings = settings
         self._budget = budget
         self._context_builder = context_builder or ContextBuilder(settings.max_context_tokens)
         self._prompt_renderer = prompt_renderer or PromptRenderer()
+        self._live_travel_service = live_travel_service or LiveTravelService()
 
-    async def create(self, request: PlanRequest) -> PlanResponse:
+    async def create(
+        self,
+        request: PlanRequest,
+        on_stage: Callable[[str, str], Awaitable[None]] | None = None,
+    ) -> PlanResponse:
         started = perf_counter()
-        context = self._context_builder.build(request)
+        live_info = await self._live_travel_service.collect(request)
+        live_info_data = live_info.model_dump(mode="json") if live_info else None
+        context = self._context_builder.build(request, live_info_data)
         feedback = ""
 
         for attempt in range(2):
@@ -44,7 +54,11 @@ class PlanOrchestrator:
             estimated_input_tokens = max(1, math.ceil(len(prompt) / 4))
             self._budget.reserve(estimated_input_tokens, self._settings.max_output_tokens)
             try:
+                if on_stage is not None:
+                    await on_stage("generating", "Створюємо маршрут за вашими побажаннями.")
                 completion = await self._provider.generate(request, prompt)
+                if on_stage is not None:
+                    await on_stage("validating", "Перевіряємо дати, структуру та логіку плану.")
                 draft = PlanDraft.model_validate_json(completion.content)
                 validate_plan_draft(draft, request)
             except ProviderFailure:
@@ -81,6 +95,16 @@ class PlanOrchestrator:
                     "context_hash": context.context_hash,
                 },
             )
+            if live_info:
+                draft.live_info = live_info
+                draft.missing_data = [
+                    item
+                    for item in draft.missing_data
+                    if not (
+                        item == "live_weather"
+                        and bool(live_info.weather)
+                    )
+                ]
             return PlanResponse(
                 id=str(uuid4()),
                 destination=request.destination,
@@ -91,6 +115,7 @@ class PlanOrchestrator:
                 traveler_count=request.traveler_count,
                 days=draft.days,
                 missing_data=draft.missing_data,
+                live_info=draft.live_info,
                 source=completion.source,
                 created_at=datetime.now(timezone.utc),
             )

@@ -1,6 +1,8 @@
+import re
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
+from uuid import UUID
 
 from pydantic import (
     BaseModel,
@@ -13,6 +15,48 @@ from pydantic import (
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+
+class RegisterRequest(StrictModel):
+    email: str = Field(min_length=3, max_length=254)
+    password: str = Field(min_length=12, max_length=128)
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", normalized):
+            raise ValueError("Invalid email address")
+        return normalized
+
+
+class LoginRequest(StrictModel):
+    email: str = Field(min_length=3, max_length=254)
+    password: str = Field(min_length=1, max_length=128)
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", normalized):
+            raise ValueError("Invalid email address")
+        return normalized
+
+
+class ResendVerificationRequest(StrictModel):
+    email: str = Field(min_length=3, max_length=254)
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", normalized):
+            raise ValueError("Invalid email address")
+        return normalized
+
+
+class VerifyEmailRequest(StrictModel):
+    token: str = Field(min_length=32, max_length=128)
 
 
 class PlanRequest(StrictModel):
@@ -58,15 +102,45 @@ class PlanRequest(StrictModel):
         return end_date
 
 
+class ProviderModeRequest(StrictModel):
+    mode: Literal["mock", "openai_compat"]
+
+
 class ItineraryDay(StrictModel):
     date: date
     activities: list[str] = Field(min_length=1)
     estimated_cost: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
 
 
+class WeatherDay(StrictModel):
+    date: date
+    temperature_min: float | None = None
+    temperature_max: float | None = None
+    precipitation_probability: int | None = Field(default=None, ge=0, le=100)
+    weather_code: int | None = None
+
+
+class LivePlace(StrictModel):
+    name: str
+    category: str
+    address: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+
+
+class LiveTravelInfo(StrictModel):
+    latitude: float | None = None
+    longitude: float | None = None
+    weather: list[WeatherDay] = Field(default_factory=list)
+    attractions: list[LivePlace] = Field(default_factory=list)
+    accommodations: list[LivePlace] = Field(default_factory=list)
+    sources: list[str] = Field(default_factory=list)
+
+
 class PlanDraft(StrictModel):
     days: list[ItineraryDay]
     missing_data: list[str] = Field(default_factory=list)
+    live_info: LiveTravelInfo | None = None
 
 
 class PlanResponse(StrictModel):
@@ -79,5 +153,43 @@ class PlanResponse(StrictModel):
     traveler_count: int
     days: list[ItineraryDay]
     missing_data: list[str]
+    live_info: LiveTravelInfo | None = None
     source: Literal["main", "fallback", "cache", "mock", "recorded"]
     created_at: datetime
+
+
+class JobStatusResponse(StrictModel):
+    id: UUID
+    destination: str
+    start_date: date
+    end_date: date
+    provider_mode: Literal["mock", "openai_compat"] = "mock"
+    status: Literal[
+        "queued",
+        "preparing",
+        "generating",
+        "validating",
+        "completed",
+        "failed",
+        "cancel_requested",
+        "cancelled",
+        "interrupted",
+    ]
+    message: str
+    error_code: str | None
+    created_at: datetime
+    updated_at: datetime
+    latest_event_id: int
+    plan: PlanResponse | None
+
+
+class JobEnvelope(StrictModel):
+    job: JobStatusResponse
+
+
+class JobCreatedResponse(JobEnvelope):
+    created: bool
+
+
+class JobListResponse(StrictModel):
+    jobs: list[JobStatusResponse]
