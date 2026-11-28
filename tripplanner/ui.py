@@ -134,9 +134,23 @@ INDEX_HTML = """<!doctype html>
       .trip-row h3 { margin: 0 0 5px; font-size: .98rem; }
       .trip-row p { margin: 0; color: var(--muted); font-size: .8rem; }
       .card { padding: clamp(20px, 3vw, 30px); border: 1px solid var(--line); border-radius: 20px; background: var(--surface); box-shadow: 0 6px 24px #172a2806; }
-      .new-page-heading { margin-bottom: 19px; }
+      .new-page-heading { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 19px; }
+      .new-page-copy { flex: 1 1 auto; }
       .new-page-heading h2 { margin: 6px 0; font-size: clamp(1.45rem, 2.6vw, 1.9rem); }
-      .new-page-heading p { max-width: 680px; margin: 0; color: var(--muted); line-height: 1.55; }
+      .new-page-copy > p:not(.eyebrow) { max-width: 680px; margin: 0; color: var(--muted); line-height: 1.55; }
+      .journey-illustration {
+        flex: 0 0 min(38%, 390px); height: 150px; overflow: hidden; border: 1px solid #dce8df;
+        border-radius: 20px; background: linear-gradient(145deg, #f1f8f4, #e6f3eb);
+        box-shadow: 0 8px 24px #17372b0a;
+      }
+      .journey-illustration svg { display: block; width: 100%; height: 100%; }
+      .destination-suggestions { display: flex; flex-wrap: wrap; gap: 7px; }
+      .destination-chip {
+        min-height: 36px; padding: 0 12px; border: 1px solid #dce8df; border-radius: 999px;
+        background: #f7faf7; color: #385347; font-size: .78rem; font-weight: 680; cursor: pointer;
+        transition: border-color .16s ease, background .16s ease, transform .16s ease;
+      }
+      .destination-chip:hover { transform: translateY(-1px); border-color: #a9cdb6; background: #edf6ef; }
       .steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin: 0 0 28px; padding: 0; list-style: none; }
       .steps li { display: flex; min-height: 49px; align-items: center; gap: 9px; padding: 8px 11px; border: 1px solid #e4e9e5; border-radius: 12px; color: #758078; font-size: .82rem; font-weight: 620; }
       .steps li[aria-current="step"] { border-color: #bedac9; background: #f1f8f3; color: var(--green-dark); font-weight: 750; }
@@ -245,6 +259,8 @@ INDEX_HTML = """<!doctype html>
         .main-panel { margin-left: 0; padding-bottom: 70px; }
         .topbar { position: static; min-height: 76px; padding: 12px 18px; }
         .content { padding: 20px 16px 38px; }
+        .new-page-heading { align-items: stretch; flex-direction: column; gap: 16px; }
+        .journey-illustration { flex-basis: auto; width: 100%; height: 126px; }
         .welcome-panel { min-height: 255px; padding: 26px 23px; }
         .welcome-art { right: -26%; bottom: -36%; width: 70%; opacity: .75; }
         .stats-grid { grid-template-columns: 1fr; gap: 9px; margin: 14px 0 28px; }
@@ -271,6 +287,11 @@ INDEX_HTML = """<!doctype html>
         .account-email { max-width: 145px; }
         .workflow-steps { grid-template-columns: 1fr 1fr; }
         .provider-controls { grid-template-columns: 1fr; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { scroll-behavior: auto !important; }
+        .page-view { animation: none; }
+        .destination-chip, .button, .trip-card { transition: none; }
       }
       @media (max-width: 390px) {
         .topbar { align-items: flex-start; }
@@ -461,9 +482,47 @@ INDEX_HTML = """<!doctype html>
 
             <section class="page-view" id="new-trip-page" data-view="new" hidden>
               <div class="new-page-heading">
-                <p class="eyebrow">НОВА ПОДОРОЖ</p>
-                <h2>Створімо план, який підійде саме вам</h2>
-                <p>Рухайтеся крок за кроком. Ваші дані можна перевірити перед надсиланням.</p>
+                <div class="new-page-copy">
+                  <p class="eyebrow">НОВА ПОДОРОЖ</p>
+                  <h2 id="new-trip-title" tabindex="-1">Створімо план, який підійде саме вам</h2>
+                  <p>Рухайтеся крок за кроком. Ваші дані можна перевірити перед надсиланням.</p>
+                </div>
+                <div class="journey-illustration" role="img" aria-label="Літак пролітає над маршрутом, а потяг рухається колією">
+                  <svg id="travel-scene" viewBox="0 0 640 180" aria-hidden="true" focusable="false">
+                    <defs>
+                      <linearGradient id="travel-sky" x1="0" y1="0" x2="1" y2="1">
+                        <stop offset="0" stop-color="#f8fcf8"/>
+                        <stop offset="1" stop-color="#deefe4"/>
+                      </linearGradient>
+                    </defs>
+                    <path d="M0 0h640v180H0z" fill="url(#travel-sky)"/>
+                    <circle cx="550" cy="31" r="15" fill="#f1ca74" opacity=".8"/>
+                    <path d="M25 67C119 12 211 20 286 48s175 31 324-13" fill="none" stroke="#8ebca0" stroke-dasharray="4 8" stroke-linecap="round" stroke-width="2" opacity=".8"/>
+                    <path d="M48 45c0-7 6-12 13-12 3-8 15-10 21-4 9-2 16 4 16 12H48zm169 15c0-6 5-10 11-10 3-7 13-8 18-3 7-2 13 3 13 10h-42z" fill="#fff" opacity=".8"/>
+                    <path d="M0 144h640M0 153h640" fill="none" stroke="#87aa93" stroke-width="2" opacity=".55"/>
+                    <path d="M18 139l12 20m20-20 12 20m20-20 12 20m20-20 12 20m20-20 12 20m20-20 12 20m20-20 12 20m20-20 12 20m20-20 12 20m20-20 12 20m20-20 12 20m20-20 12 20m20-20 12 20m20-20 12 20m20-20 12 20m20-20 12 20m20-20 12 20m20-20 12 20m20-20 12 20m20-20 12 20m20-20 12 20" fill="none" stroke="#87aa93" stroke-width="2" opacity=".42"/>
+                    <g fill="#cfe4d5">
+                      <path d="M287 137v-22h17v22zm22 0v-32h18v32zm25 0v-25h15v25zm23 0v-38h20v38zm27 0v-27h17v27z"/>
+                    </g>
+                    <g>
+                      <animateMotion dur="16s" repeatCount="indefinite" rotate="auto" path="M -25 75 C 105 15 205 20 288 48 S 470 76 665 34"/>
+                      <path d="M-14 0 10-7 4 0l11 4-1 3L3 4 0 11l-3-1 2-7-13-1z" fill="#176b53" stroke="#fff" stroke-linejoin="round" stroke-width="1.5"/>
+                    </g>
+                    <g>
+                      <animateTransform attributeName="transform" type="translate" from="-170 0" to="650 0" dur="20s" repeatCount="indefinite"/>
+                      <rect x="0" y="115" width="145" height="27" rx="8" fill="#176b53"/>
+                      <path d="M11 115v-12h92l24 12" fill="#258466"/>
+                      <path d="M109 105h-14v10h24z" fill="#d8efe0"/>
+                      <rect x="16" y="120" width="17" height="9" rx="2" fill="#d8efe0"/>
+                      <rect x="40" y="120" width="17" height="9" rx="2" fill="#d8efe0"/>
+                      <rect x="64" y="120" width="17" height="9" rx="2" fill="#d8efe0"/>
+                      <circle cx="27" cy="143" r="5" fill="#344c40"/>
+                      <circle cx="117" cy="143" r="5" fill="#344c40"/>
+                      <circle cx="27" cy="143" r="2" fill="#e9f4ec"/>
+                      <circle cx="117" cy="143" r="2" fill="#e9f4ec"/>
+                    </g>
+                  </svg>
+                </div>
               </div>
               <aside class="workflow-card" aria-labelledby="workflow-title">
                 <h3 id="workflow-title">Як створюється план</h3>
@@ -496,6 +555,12 @@ INDEX_HTML = """<!doctype html>
                         <label for="destination">Місто або напрямок</label>
                         <input id="destination" name="destination" required minlength="1" maxlength="100" autocomplete="off" aria-describedby="destination-help">
                         <p class="hint" id="destination-help">Наприклад: Львів або Прага</p>
+                        <div class="destination-suggestions" role="group" aria-label="Швидкий вибір напрямку">
+                          <button type="button" class="destination-chip" data-destination="Львів">Львів</button>
+                          <button type="button" class="destination-chip" data-destination="Карпати">Карпати</button>
+                          <button type="button" class="destination-chip" data-destination="Київ">Київ</button>
+                          <button type="button" class="destination-chip" data-destination="Прага">Прага</button>
+                        </div>
                       </div>
                       <div class="field">
                         <label for="start-date">Дата початку</label>
@@ -631,6 +696,20 @@ INDEX_HTML = """<!doctype html>
         interests: document.querySelector("#interests"),
         constraints: document.querySelector("#constraints")
       };
+      document.querySelectorAll("[data-destination]").forEach((button) => {
+        button.addEventListener("click", () => {
+          fields.destination.value = button.dataset.destination;
+          fields.destination.focus();
+        });
+      });
+      const travelScene = document.querySelector("#travel-scene");
+      const motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
+      function syncTravelMotion() {
+        if (motionPreference.matches) travelScene.pauseAnimations();
+        else travelScene.unpauseAnimations();
+      }
+      syncTravelMotion();
+      motionPreference.addEventListener("change", syncTravelMotion);
       let currentStep = 1;
       let pendingSubmission = null;
       let currentUser = null;
@@ -1006,7 +1085,8 @@ INDEX_HTML = """<!doctype html>
           status.hidden = true;
           status.classList.remove("error");
           clearFieldErrors();
-          showStep(1);
+          showStep(1, false);
+          document.querySelector("#new-trip-title").focus();
         }
         document.querySelectorAll("[data-page-link]").forEach((link) => {
           const current = link.dataset.pageLink === route.page
@@ -1323,14 +1403,16 @@ INDEX_HTML = """<!doctype html>
         }
       }
 
-      function showStep(step) {
+      function showStep(step, focusField = true) {
         currentStep = step;
         panels.forEach((panel) => { panel.hidden = Number(panel.dataset.step) !== step; });
         stepMarkers.forEach((marker, index) => {
           if (index + 1 === step) marker.setAttribute("aria-current", "step");
           else marker.removeAttribute("aria-current");
         });
-        document.querySelector(`#${step === 1 ? "destination" : step === 2 ? "interests" : "review-title"}`).focus();
+        if (focusField) {
+          document.querySelector(`#${step === 1 ? "destination" : step === 2 ? "interests" : "review-title"}`).focus();
+        }
         if (step === 3) renderReview();
       }
 
