@@ -41,6 +41,7 @@ from tripplanner.storage.store import (
     PostgresTripPlannerStore,
     TripPlannerStore,
 )
+from tripplanner.storage.sqlite_store import SQLiteTripPlannerStore
 from tripplanner.ui import index_page
 from tripplanner.worker import JobWorker
 
@@ -71,7 +72,13 @@ def create_app(
         else None
     )
     repository = store or (
-        PostgresTripPlannerStore(database) if database else MemoryTripPlannerStore()
+        PostgresTripPlannerStore(database)
+        if database
+        else (
+            SQLiteTripPlannerStore(app_settings.sqlite_path)
+            if app_settings.storage_backend == "sqlite"
+            else MemoryTripPlannerStore()
+        )
     )
 
     @asynccontextmanager
@@ -81,8 +88,10 @@ def create_app(
             if database is not None:
                 await database.open()
                 await initialize_schema(database)
+            elif isinstance(repository, SQLiteTripPlannerStore):
+                await repository.initialize()
             await repository.initialize_provider_mode(app_settings.provider)
-            if app_settings.storage_backend == "memory":
+            if app_settings.storage_backend in {"memory", "sqlite"}:
                 worker = JobWorker(
                     repository,
                     orchestrator,
@@ -97,6 +106,8 @@ def create_app(
                 await asyncio.gather(worker_task, return_exceptions=True)
             if database is not None:
                 await database.close()
+            elif isinstance(repository, SQLiteTripPlannerStore):
+                await repository.close()
 
     app = FastAPI(
         title="TripPlanner AI — планування подорожей",
@@ -253,12 +264,9 @@ def create_app(
         attempt_key = auth_attempt_key("register", client_ip)
         if not await repository.record_login_attempt(attempt_key, 900, 10):
             raise TripPlannerError(ErrorCode.RATE_LIMITED, retry_after=900)
-        user = await app.state.auth_service.register(payload.email, payload.password)
-        verification_url = await send_verification(user)
+        await app.state.auth_service.register(payload.email, payload.password)
         return {
-            "message": "Перевірте пошту та відкрийте посилання для підтвердження.",
-            "verification_url": verification_url,
-            "development_only": app_settings.email_backend == "development",
+            "message": "Обліковий запис створено. Тепер можна увійти.",
         }
 
     @app.post(

@@ -60,8 +60,6 @@ class AuthService:
         valid_password = password_hash.verify(password, stored_hash)
         if user is None or not valid_password:
             raise TripPlannerError(ErrorCode.UNAUTHORIZED)
-        if not user.get("email_verified", False):
-            raise TripPlannerError(ErrorCode.EMAIL_NOT_VERIFIED)
         await self._store.clear_login_attempts(attempt_key)
         return user, *(await self._create_session(user["id"]))
 
@@ -76,7 +74,7 @@ class AuthService:
             if not csrf_token or not compare_digest(csrf_token, session["csrf_token"]):
                 raise TripPlannerError(ErrorCode.UNAUTHORIZED)
         user = await self._store.get_user_by_id(session["user_id"])
-        if user is None or not user.get("email_verified", False):
+        if user is None:
             raise TripPlannerError(ErrorCode.UNAUTHORIZED)
         return {**user, "csrf_token": session["csrf_token"]}
 

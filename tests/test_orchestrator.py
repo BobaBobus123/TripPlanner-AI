@@ -54,8 +54,20 @@ class SequenceProvider:
 def valid_draft() -> str:
     return PlanDraft(
         days=[
-            {"date": "2027-05-10", "activities": ["Visit a local museum"]},
-            {"date": "2027-05-11", "activities": ["Explore the historic center"]},
+            {
+                "date": "2027-05-10",
+                "activities": [
+                    "Visit a local museum and choose an exhibit that matches your interests.",
+                    "Walk through a nearby public area and leave time for a relaxed break.",
+                ],
+            },
+            {
+                "date": "2027-05-11",
+                "activities": [
+                    "Explore a different neighborhood and check current transit options.",
+                    "Choose a cultural stop based on verified opening information.",
+                ],
+            },
         ],
         missing_data=[
             "live_weather",
@@ -81,8 +93,20 @@ def test_invalid_schema_gets_exactly_one_retry() -> None:
 def test_domain_invalid_dates_get_one_retry_then_safe_error() -> None:
     invalid = PlanDraft(
         days=[
-            {"date": "2027-05-09", "activities": ["Outside trip dates"]},
-            {"date": "2027-05-11", "activities": ["Explore"]},
+            {
+                "date": "2027-05-09",
+                "activities": [
+                    "Outside trip dates and should be rejected.",
+                    "Choose a different route option for this day.",
+                ],
+            },
+            {
+                "date": "2027-05-11",
+                "activities": [
+                    "Explore a suitable local museum.",
+                    "Take a relaxed break in a public area.",
+                ],
+            },
         ],
         missing_data=[
             "live_weather",
@@ -101,6 +125,37 @@ def test_domain_invalid_dates_get_one_retry_then_safe_error() -> None:
     assert error.value.code == ErrorCode.INVALID_OUTPUT
     assert len(provider.prompts) == 2
     assert "Outside trip dates" not in str(error.value)
+
+
+def test_underplanned_day_gets_one_retry() -> None:
+    underplanned = PlanDraft(
+        days=[
+            {"date": "2027-05-10", "activities": ["Visit a local museum"]},
+            {
+                "date": "2027-05-11",
+                "activities": [
+                    "Explore a different neighborhood at a relaxed pace.",
+                    "Choose a cultural stop after checking current opening details.",
+                ],
+            },
+        ],
+        missing_data=[
+            "live_weather",
+            "current_prices",
+            "opening_hours",
+            "budget_estimates",
+        ],
+    ).model_dump_json()
+    provider = SequenceProvider([underplanned, valid_draft()])
+    settings = Settings()
+    orchestrator = PlanOrchestrator(provider, settings, DailyBudget(settings))
+
+    result = asyncio.run(orchestrator.create(plan_request()))
+
+    assert len(result.days[0].activities) == 2
+    assert len(provider.prompts) == 2
+    assert "2 to 5 distinct" in provider.prompts[0]
+    assert "domain_validation_failed" in provider.prompts[1]
 
 
 def test_context_truncates_optional_interests_and_keeps_user_text_in_data(caplog) -> None:

@@ -1,4 +1,5 @@
 from decimal import Decimal
+from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
 
@@ -27,7 +28,8 @@ class Settings(BaseSettings):
     smtp_starttls: bool = True
     recorded_mode: Literal["disabled", "replay", "record", "passthrough"] = "disabled"
     recorded_path: str = "recordings/plans.jsonl"
-    storage_backend: Literal["memory", "postgres"] = "memory"
+    storage_backend: Literal["memory", "sqlite", "postgres"] = "sqlite"
+    sqlite_path: Path = Path("data/tripplanner.sqlite3")
     database_url: SecretStr | None = None
     session_cookie_secure: bool | None = None
     session_ttl_hours: int = Field(default=336, ge=1, le=2160)
@@ -88,11 +90,17 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_provider_configuration(self) -> "Settings":
-        if self.app_env == "production" and self.email_backend != "smtp":
-            raise ValueError("EMAIL_BACKEND=smtp is required in production")
-        if self.app_env == "production" and urlsplit(str(self.public_base_url)).scheme != "https":
+        if (
+            self.app_env == "production"
+            and self.email_backend == "smtp"
+            and urlsplit(str(self.public_base_url)).scheme != "https"
+        ):
             raise ValueError("PUBLIC_BASE_URL must use HTTPS in production")
-        if self.app_env == "production" and not self.smtp_starttls:
+        if (
+            self.app_env == "production"
+            and self.email_backend == "smtp"
+            and not self.smtp_starttls
+        ):
             raise ValueError("SMTP_STARTTLS must be enabled in production")
         if self.email_backend == "smtp":
             if not self.smtp_host or not self.email_from:

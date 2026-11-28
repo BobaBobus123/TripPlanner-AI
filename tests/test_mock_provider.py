@@ -4,7 +4,7 @@ import pytest
 
 from tripplanner.config import Settings
 from tripplanner.errors import ErrorCode, ProviderFailure
-from tripplanner.models import PlanRequest
+from tripplanner.models import PlanDraft, PlanRequest
 from tripplanner.providers.mock import MockProvider
 
 
@@ -42,3 +42,22 @@ def test_stream_failure_is_explicit() -> None:
         asyncio.run(collect())
 
     assert error.value.code == ErrorCode.PROVIDER_UNAVAILABLE
+
+
+def test_mock_plan_contains_distinct_actions_and_respects_user_interests() -> None:
+    payload = request().model_copy(
+        update={"interests": ["історія"], "constraints": ["уникати довгих переходів"]}
+    )
+    provider = MockProvider(Settings())
+
+    async def generate() -> PlanDraft:
+        completion = await provider.generate(payload)
+        return PlanDraft.model_validate_json(completion.content)
+
+    draft = asyncio.run(generate())
+    activities = draft.days[0].activities
+
+    assert len(activities) == 3
+    assert len({activity.casefold() for activity in activities}) == 3
+    assert "історія" in activities[1]
+    assert "обмеження" in activities[1]

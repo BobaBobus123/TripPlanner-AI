@@ -347,7 +347,7 @@ INDEX_HTML = """<!doctype html>
             </section>
             <section id="register-panel" data-auth-view="register" aria-labelledby="register-title" hidden>
               <h2 id="register-title">Створіть обліковий запис</h2>
-              <p class="hint">Підтвердьте пошту за посиланням із листа, щоб захистити доступ до подорожей.</p>
+              <p class="hint">Вкажіть електронну пошту та створіть пароль. Після реєстрації можна одразу увійти.</p>
               <form id="register-form">
                 <div class="field-grid">
                   <div class="field full">
@@ -366,7 +366,7 @@ INDEX_HTML = """<!doctype html>
                   </div>
                 </div>
                 <div class="auth-form-actions">
-                  <button type="submit" class="button">Надіслати лист підтвердження</button>
+                  <button type="submit" class="button">Зареєструватися</button>
                   <a class="button secondary" href="/login" data-nav>Уже маєте обліковий запис? Увійти</a>
                 </div>
               </form>
@@ -765,7 +765,7 @@ INDEX_HTML = """<!doctype html>
         if (!registerForm.reportValidity()) return;
         const buttons = registerForm.querySelectorAll("button");
         buttons.forEach((button) => { button.disabled = true; });
-        showAuthMessage("Створюємо обліковий запис і готуємо лист…");
+        showAuthMessage("Створюємо обліковий запис…");
         try {
           const response = await fetch("/api/v1/auth/register", {
             method: "POST",
@@ -784,27 +784,9 @@ INDEX_HTML = """<!doctype html>
             return;
           }
           const email = document.querySelector("#register-email").value.trim();
-          document.querySelector("#resend-email").value = email;
           authNotice = body.message;
-          if (body.verification_url) {
-            const verificationUrl = new URL(body.verification_url, window.location.origin);
-            if (verificationUrl.origin === window.location.origin) {
-              await navigateTo(`${verificationUrl.pathname}${verificationUrl.search}${verificationUrl.hash}`);
-              const developmentNote = document.querySelector("#development-verification");
-              developmentNote.replaceChildren();
-              const label = document.createElement("strong");
-              label.textContent = "Локальний режим розробки: лист не надсилається.";
-              const link = document.createElement("a");
-              link.className = "text-link verify-link";
-              link.href = `${verificationUrl.pathname}${verificationUrl.search}${verificationUrl.hash}`;
-              link.textContent = "Відкрити посилання для підтвердження";
-              link.dataset.nav = "";
-              developmentNote.append(label, document.createElement("br"), link);
-              developmentNote.hidden = false;
-            }
-          } else {
-            await navigateTo("/verify-email");
-          }
+          await navigateTo("/login");
+          document.querySelector("#login-email").value = email;
           showAuthMessage(body.message);
         } catch {
           showAuthMessage("Не вдалося надіслати запит. Перевірте з’єднання та спробуйте ще раз.", true);

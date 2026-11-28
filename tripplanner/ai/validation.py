@@ -20,6 +20,15 @@ def validate_plan_draft(draft: PlanDraft, request: PlanRequest) -> None:
     if actual_dates != expected_dates:
         raise TripPlannerError(ErrorCode.INVALID_OUTPUT)
 
+    for day in draft.days:
+        activities = [activity.strip().casefold() for activity in day.activities]
+        if (
+            not 2 <= len(activities) <= 5
+            or any(len(activity) < 12 for activity in activities)
+            or len(set(activities)) != len(activities)
+        ):
+            raise TripPlannerError(ErrorCode.INVALID_OUTPUT)
+
     if not REQUIRED_MISSING_DATA.issubset(draft.missing_data):
         raise TripPlannerError(ErrorCode.INVALID_OUTPUT)
 

@@ -5,8 +5,8 @@ from string import Template
 from tripplanner.ai.context import BuiltContext
 from tripplanner.models import PlanDraft
 
-PROMPT_VERSION = "plan-v1"
-PROMPT_PATH = Path(__file__).resolve().parents[2] / "prompts" / "plan_v1.txt"
+PROMPT_VERSION = "plan-v2"
+PROMPT_PATH = Path(__file__).resolve().parents[2] / "prompts" / "plan_v2.txt"
 
 
 class PromptRenderer:

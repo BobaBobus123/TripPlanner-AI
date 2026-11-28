@@ -31,15 +31,28 @@ class MockProvider:
             except json.JSONDecodeError as exc:
                 raise ProviderFailure(ErrorCode.INVALID_OUTPUT) from exc
 
+        interest = request.interests[0] if request.interests else None
+        focus = (
+            f"приділіть час темі «{interest}» у відповідному міському просторі"
+            if interest
+            else "оберіть культурний простір відповідно до власних уподобань"
+        )
+        constraint_note = (
+            " Під час вибору врахуйте вказані вами обмеження."
+            if request.constraints
+            else ""
+        )
         draft = PlanDraft(
             days=[
-            ItineraryDay(
-                date=day,
-                activities=[
-                    f"Прогуляйтеся містом {request.destination} у спокійному темпі; перед подорожжю перевірте актуальну інформацію."
-                ],
-            )
-            for day in self._dates(request.start_date, request.end_date)
+                ItineraryDay(
+                    date=day,
+                    activities=[
+                        f"Огляньте різні райони {request.destination} пішки або громадським транспортом і звірте маршрут з актуальною картою.",
+                        f"У {request.destination} {focus}; перед візитом перевірте доступність і години роботи.{constraint_note}",
+                        "Залиште час для відпочинку та зміни плану залежно від погоди й самопочуття.",
+                    ],
+                )
+                for day in self._dates(request.start_date, request.end_date)
             ],
             missing_data=[
                 "live_weather",

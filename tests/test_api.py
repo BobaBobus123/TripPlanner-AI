@@ -1,5 +1,4 @@
 import time
-from urllib.parse import parse_qs, urlsplit
 
 from fastapi.testclient import TestClient
 
@@ -25,10 +24,6 @@ def register(client: TestClient, email: str = "traveler@example.com") -> str:
         json={"email": email, "password": "correct horse battery staple"},
     )
     assert registration.status_code == 201
-    verification_url = registration.json()["verification_url"]
-    token = parse_qs(urlsplit(verification_url).fragment)["token"][0]
-    verified = client.post("/api/v1/auth/verify-email", json={"token": token})
-    assert verified.status_code == 200
     login = client.post(
         "/api/v1/auth/login",
         json={"email": email, "password": "correct horse battery staple"},
@@ -38,7 +33,8 @@ def register(client: TestClient, email: str = "traveler@example.com") -> str:
 
 
 def test_health_does_not_call_provider() -> None:
-    response = TestClient(create_app(Settings(mock_failure_mode="timeout"))).get("/health")
+    with TestClient(create_app(Settings(mock_failure_mode="timeout"))) as client:
+        response = client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
     assert response.json()["checks"]["ai_mode"] == "demo"
@@ -52,7 +48,8 @@ def test_health_reports_live_provider_without_exposing_credentials() -> None:
         input_cost_per_million_tokens="0.15",
         output_cost_per_million_tokens="0.60",
     )
-    response = TestClient(create_app(settings)).get("/health")
+    with TestClient(create_app(settings)) as client:
+        response = client.get("/health")
 
     assert response.status_code == 200
     assert response.json()["checks"]["ai_mode"] == "live"
@@ -67,29 +64,29 @@ def test_global_provider_mode_can_only_be_changed_by_configured_admin() -> None:
         input_cost_per_million_tokens="0.15",
         output_cost_per_million_tokens="0.60",
     )
-    client = TestClient(create_app(settings))
-    admin_csrf = register(client, "owner@example.com")
+    with TestClient(create_app(settings)) as client:
+        admin_csrf = register(client, "owner@example.com")
 
-    initial = client.get("/api/v1/settings/provider")
-    switched = client.put(
-        "/api/v1/settings/provider",
-        json={"mode": "openai_compat"},
-        headers={"X-CSRF-Token": admin_csrf},
-    )
-    health = client.get("/health")
-    client.post(
-        "/api/v1/auth/logout",
-        headers={"X-CSRF-Token": admin_csrf},
-    )
-    register(client, "traveler@example.com")
-    regular_user_settings = client.get("/api/v1/settings/provider")
-    forbidden_switch = client.put(
-        "/api/v1/settings/provider",
-        json={"mode": "mock"},
-        headers={
-            "X-CSRF-Token": client.get("/api/v1/auth/me").json()["csrf_token"]
-        },
-    )
+        initial = client.get("/api/v1/settings/provider")
+        switched = client.put(
+            "/api/v1/settings/provider",
+            json={"mode": "openai_compat"},
+            headers={"X-CSRF-Token": admin_csrf},
+        )
+        health = client.get("/health")
+        client.post(
+            "/api/v1/auth/logout",
+            headers={"X-CSRF-Token": admin_csrf},
+        )
+        register(client, "traveler@example.com")
+        regular_user_settings = client.get("/api/v1/settings/provider")
+        forbidden_switch = client.put(
+            "/api/v1/settings/provider",
+            json={"mode": "mock"},
+            headers={
+                "X-CSRF-Token": client.get("/api/v1/auth/me").json()["csrf_token"]
+            },
+        )
 
     assert initial.json()["mode"] == "mock"
     assert initial.json()["is_admin"] is True
@@ -102,64 +99,64 @@ def test_global_provider_mode_can_only_be_changed_by_configured_admin() -> None:
     assert forbidden_switch.status_code == 404
 
 
-def test_registration_requires_email_verification_before_login() -> None:
+def test_registration_allows_immediate_login_without_email_delivery() -> None:
     with TestClient(create_app()) as client:
         registration = client.post(
             "/api/v1/auth/register",
             json={"email": "Traveler@Example.com", "password": "correct horse battery staple"},
         )
-        login_before_verification = client.post(
-            "/api/v1/auth/login",
-            json={"email": "traveler@example.com", "password": "correct horse battery staple"},
-        )
-        verification_url = registration.json()["verification_url"]
-        token = parse_qs(urlsplit(verification_url).fragment)["token"][0]
-        verification = client.post("/api/v1/auth/verify-email", json={"token": token})
-        replay = client.post("/api/v1/auth/verify-email", json={"token": token})
-        login_after_verification = client.post(
+        login = client.post(
             "/api/v1/auth/login",
             json={"email": "traveler@example.com", "password": "correct horse battery staple"},
         )
 
     assert registration.status_code == 201
-    assert registration.json()["development_only"] is True
-    assert urlsplit(verification_url).query == ""
+    assert registration.json()["message"] == "Обліковий запис створено. Тепер можна увійти."
+    assert "verification_url" not in registration.json()
     assert registration.headers["referrer-policy"] == "no-referrer"
     assert "set-cookie" not in registration.headers
-    assert login_before_verification.status_code == 403
-    assert login_before_verification.json()["error"]["code"] == "email_not_verified"
-    assert verification.status_code == 200
-    assert replay.status_code == 400
-    assert replay.json()["error"]["code"] == "invalid_verification_token"
-    assert login_after_verification.status_code == 200
-    assert "password" not in login_after_verification.json()
-    cookie = login_after_verification.headers["set-cookie"].lower()
+    assert login.status_code == 200
+    assert "password" not in login.json()
+    cookie = login.headers["set-cookie"].lower()
     assert "httponly" in cookie
     assert "samesite=lax" in cookie
 
 
-def test_resending_verification_invalidates_previous_token_without_leaking_hashes() -> None:
-    app = create_app()
-    with TestClient(app) as client:
-        registration = client.post(
-            "/api/v1/auth/register",
-            json={"email": "traveler@example.com", "password": "correct horse battery staple"},
-        )
-        old_token = parse_qs(urlsplit(registration.json()["verification_url"]).fragment)["token"][0]
-        resend = client.post(
-            "/api/v1/auth/resend-verification",
-            json={"email": "traveler@example.com"},
-        )
-        new_token = parse_qs(urlsplit(resend.json()["verification_url"]).fragment)["token"][0]
-        old_link = client.post("/api/v1/auth/verify-email", json={"token": old_token})
-        verified = client.post("/api/v1/auth/verify-email", json={"token": new_token})
+def test_registration_persists_across_app_restart(tmp_path) -> None:
+    settings = Settings(sqlite_path=tmp_path / "persistent.sqlite3")
+    credentials = {
+        "email": "traveler@example.com",
+        "password": "correct horse battery staple",
+    }
 
-    assert resend.status_code == 200
-    assert "traveler@example.com" not in resend.json()["message"]
-    assert old_link.status_code == 400
-    assert verified.status_code == 200
-    assert old_token not in app.state.store._email_verification_tokens
-    assert new_token not in app.state.store._email_verification_tokens
+    with TestClient(create_app(settings)) as first_run:
+        registration = first_run.post("/api/v1/auth/register", json=credentials)
+        assert registration.status_code == 201
+
+    with TestClient(create_app(settings)) as restarted_app:
+        login = restarted_app.post("/api/v1/auth/login", json=credentials)
+        account = restarted_app.get("/api/v1/auth/me")
+
+    assert login.status_code == 200
+    assert account.status_code == 200
+    assert account.json()["user"]["email"] == credentials["email"]
+
+
+def test_registration_rate_limit_is_enforced() -> None:
+    with TestClient(create_app()) as client:
+        responses = [
+            client.post(
+                "/api/v1/auth/register",
+                json={
+                    "email": f"traveler{number}@example.com",
+                    "password": "correct horse battery staple",
+                },
+            )
+            for number in range(11)
+        ]
+
+    assert all(response.status_code == 201 for response in responses[:10])
+    assert responses[10].status_code == 429
 
 
 def test_login_uses_same_error_for_unknown_email_and_wrong_password() -> None:

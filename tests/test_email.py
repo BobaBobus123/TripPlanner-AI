@@ -1,7 +1,6 @@
 import asyncio
 import smtplib
 from datetime import datetime, timedelta, timezone
-from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from fastapi.testclient import TestClient
@@ -121,6 +120,7 @@ def test_expired_email_verification_token_is_rejected() -> None:
             "/api/v1/auth/register",
             json={"email": "traveler@example.com", "password": "correct horse battery staple"},
         )
+        assert registration.status_code == 201
         user = asyncio.run(app.state.store.get_user_by_email("traveler@example.com"))
         expired_token = "expired-verification-token-value-123456"
         asyncio.run(
@@ -130,24 +130,32 @@ def test_expired_email_verification_token_is_rejected() -> None:
                 datetime.now(timezone.utc) - timedelta(seconds=1),
             )
         )
-        old_token_from_link = parse_qs(
-            urlsplit(registration.json()["verification_url"]).fragment
-        )["token"][0]
         expired = client.post(
             "/api/v1/auth/verify-email",
             json={"token": expired_token},
         )
-        replaced = client.post(
-            "/api/v1/auth/verify-email",
-            json={"token": old_token_from_link},
+        valid_token = "valid-verification-token-value-123456"
+        asyncio.run(
+            app.state.store.create_email_verification(
+                user["id"],
+                hash_token(valid_token),
+                datetime.now(timezone.utc) + timedelta(minutes=5),
+            )
         )
+        verified = client.post(
+            "/api/v1/auth/verify-email",
+            json={"token": valid_token},
+        )
+        replay = client.post("/api/v1/auth/verify-email", json={"token": valid_token})
 
-    assert expired.status_code == replaced.status_code == 400
+    assert expired.status_code == replay.status_code == 400
+    assert verified.status_code == 200
     assert expired.json()["error"]["code"] == "invalid_verification_token"
+    assert replay.json()["error"]["code"] == "invalid_verification_token"
 
 
-def test_production_requires_smtp_and_https_public_url() -> None:
-    with pytest.raises(ValidationError, match="EMAIL_BACKEND=smtp is required"):
+def test_production_requires_postgres_and_smtp_uses_https() -> None:
+    with pytest.raises(ValidationError, match="STORAGE_BACKEND=postgres is required"):
         Settings(app_env="production")
 
     with pytest.raises(ValidationError, match="PUBLIC_BASE_URL must use HTTPS"):
@@ -161,7 +169,7 @@ def test_production_requires_smtp_and_https_public_url() -> None:
         )
 
 
-def test_smtp_registration_does_not_return_verification_token_to_browser() -> None:
+def test_standard_registration_does_not_send_email() -> None:
     mailer = CapturingMailer()
     settings = Settings(
         email_backend="smtp",
@@ -173,10 +181,12 @@ def test_smtp_registration_does_not_return_verification_token_to_browser() -> No
             "/api/v1/auth/register",
             json={"email": "traveler@example.com", "password": "correct horse battery staple"},
         )
+        login = client.post(
+            "/api/v1/auth/login",
+            json={"email": "traveler@example.com", "password": "correct horse battery staple"},
+        )
 
     assert response.status_code == 201
-    assert response.json()["verification_url"] is None
-    assert response.json()["development_only"] is False
-    assert mailer.recipient == "traveler@example.com"
-    assert mailer.url.startswith("http://127.0.0.1:8000/verify-email#token=")
-    assert mailer.url.split("#token=", 1)[1] not in response.text
+    assert "verification_url" not in response.json()
+    assert login.status_code == 200
+    assert mailer.recipient == ""
